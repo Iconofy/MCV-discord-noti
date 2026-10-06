@@ -230,19 +230,26 @@ def fetch_assignments():
         if COOKIE_FILE.exists():
             cookie_text = COOKIE_FILE.read_text(encoding="utf-8").strip()
             if cookie_text:
-                cookies = parse_cookies(cookie_text)
-                for cookie in cookies:
-                    driver.add_cookie(cookie)
+                try:
+                    cookies = parse_cookies(cookie_text)
+                    for cookie in cookies:
+                        driver.add_cookie(cookie)
+                except Exception as e:
+                    raise ValueError(f"ERR_COOKIE_PARSE: Failed to parse cookies from cookie.txt: {e}")
             else:
-                print("Warning: cookie.txt is empty.")
+                raise ValueError("ERR_COOKIE_EMPTY: cookie.txt is empty. Please set the COOKIE secret.")
         else:
-            print("Warning: cookie.txt not found.")
+            raise FileNotFoundError("ERR_COOKIE_MISSING: cookie.txt not found. Please set the COOKIE secret.")
 
         driver.get("https://www.mycourseville.com/?q=courseville/home")
         
         WebDriverWait(driver, 10).until(
             lambda d: d.execute_script("return document.readyState") == "complete"
         )
+        
+        # Verify if successfully logged in by checking for the user menu trigger
+        if not driver.find_elements(By.ID, "courseville-userMenuTrigger"):
+            raise PermissionError("ERR_NOT_LOGGED_IN: Could not find user profile menu. Cookies might be expired or invalid.")
         
         driver.set_script_timeout(60)
         
@@ -297,6 +304,9 @@ def fetch_assignments():
                     const upcomingAssignments = [];
                     for (const task of tasks) {
                         const res = await fetch(task.url);
+                        if (!res.ok) {
+                            throw new Error(`HTTP error! status: ${res.status} on ${task.url}`);
+                        }
                         const html = await res.text();
                         
                         let isSubmitted = false;
@@ -340,12 +350,8 @@ def fetch_assignments():
         if result.get('success'):
             return result.get('data', [])
         else:
-            print("Error inside JS execution:", result.get('error'))
-            return []
+            raise RuntimeError(f"ERR_JS_EXECUTION: {result.get('error')}")
             
-    except Exception as e:
-        print("Error during scraping:", e)
-        return []
     finally:
         driver.quit()
 
@@ -407,8 +413,15 @@ def send_discord_webhook(content):
 
 def job():
     print(f"[{datetime.now()}] Fetching assignments from MyCourseVille...")
-    assignments = fetch_assignments()
-    message = format_discord_message(assignments)
+    try:
+        assignments = fetch_assignments()
+        message = format_discord_message(assignments)
+    except Exception as e:
+        error_type = type(e).__name__
+        error_msg = str(e)
+        print(f"❌ Scraping failed: [{error_type}] {error_msg}")
+        message = f"🚨 **MCV Notification Bot Error!**\n\n**Error Type:** `{error_type}`\n**Details:** `{error_msg}`\n\nPlease check your configuration or logs."
+        
     send_discord_webhook(message)
     print(f"[{datetime.now()}] Job completed.")
 
