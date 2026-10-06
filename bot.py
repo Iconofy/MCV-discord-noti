@@ -419,21 +419,36 @@ if __name__ == '__main__':
     print("🚀 MyCourseVille Notification Bot is running...")
     
     if os.environ.get("GITHUB_ACTIONS"):
-        print("Running in GitHub Actions mode")
-        bkk_tz = timezone(timedelta(hours=7))
-        now = datetime.now(bkk_tz)
-        target = now.replace(hour=8, minute=0, second=0, microsecond=0)
+        import configparser
+        config = configparser.ConfigParser()
+        config_file = BASE_DIR / "config.ini"
+        wait_until_target = True
         
-        if now < target:
-            wait_seconds = (target - now).total_seconds()
-            print(f"Waiting for {int(wait_seconds)} seconds until {target.strftime('%H:%M:%S')} (BKK)...")
-            remaining = wait_seconds
-            while remaining > 0:
-                sleep_time = min(10, remaining)
-                time.sleep(sleep_time)
-                remaining -= sleep_time
+        if config_file.exists():
+            config.read(config_file, encoding='utf-8')
+            if config.has_option('Settings', 'WAIT_UNTIL_TARGET_TIME'):
+                val = config.get('Settings', 'WAIT_UNTIL_TARGET_TIME').strip().lower()
+                wait_until_target = val in ('true', '1', 'yes', 'y', 'on')
                 
-        print("Target time reached! Executing job...")
+        print(f"Running in GitHub Actions mode (Wait until target: {wait_until_target})")
+        
+        if wait_until_target:
+            bkk_tz = timezone(timedelta(hours=7))
+            now = datetime.now(bkk_tz)
+            target = now.replace(hour=8, minute=0, second=0, microsecond=0)
+            
+            if now < target:
+                wait_seconds = (target - now).total_seconds()
+                print(f"Waiting for {int(wait_seconds)} seconds until {target.strftime('%H:%M:%S')} (BKK)...")
+                remaining = wait_seconds
+                while remaining > 0:
+                    sleep_time = min(10, remaining)
+                    time.sleep(sleep_time)
+                    remaining -= sleep_time
+                    
+            print("Target time reached!")
+            
+        print("Executing job...")
         job()
     else:
         # Test run once immediately
