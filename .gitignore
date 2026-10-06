@@ -1,0 +1,7 @@
+cookie.txt
+discord_webhook.txt
+__pycache__/
+*.pyc
+venv/
+.env
+.vscode/
